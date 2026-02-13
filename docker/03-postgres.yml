@@ -1,0 +1,27 @@
+services:
+    postgres:
+        image: postgres:18
+        container_name: neo-postgres
+        environment:
+            POSTGRES_DB: neodb
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: postgres
+        ports:
+            - '5432:5432'
+        volumes:
+            - postgres_data:/var/lib/postgresql
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U postgres -d neodb']
+            interval: 5s
+            timeout: 3s
+            retries: 3
+            start_period: 5s
+        networks:
+            - neo-network
+volumes:
+    postgres_data:
+        driver: local
+
+networks:
+    neo-network:
+        external: true

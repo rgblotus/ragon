@@ -1,0 +1,27 @@
+services:
+    redis:
+        image: redis:latest
+        container_name: neo-redis
+        restart: no
+        ports:
+            - '6379:6379'
+        volumes:
+            - redis_data:/data
+            - ./redis.conf:/usr/local/etc/redis/redis.conf
+        command: redis-server /usr/local/etc/redis/redis.conf
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'ping']
+            interval: 5s
+            timeout: 3s
+            retries: 3
+            start_period: 5s
+        networks:
+            - neo-network
+
+volumes:
+    redis_data:
+        driver: local
+
+networks:
+    neo-network:
+        external: true

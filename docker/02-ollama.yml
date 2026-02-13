@@ -1,0 +1,36 @@
+services:
+    ollama:
+        container_name: neo-ollama
+        image: ollama/ollama:latest
+        volumes:
+            - ollama_volume:/root/.ollama
+            - ./ollama/entrypoint.sh:/entrypoint.sh:ro
+        ports:
+            - '11434:11434'
+        environment:
+            - OLLAMA_MODELS=phi3.5:latest
+        entrypoint: ['/bin/sh', '/entrypoint.sh']
+        deploy:
+            resources:
+                reservations:
+                    devices:
+                        - driver: nvidia
+                          capabilities: ['gpu']
+                          device_ids: ['0']
+        healthcheck:
+            test: ['CMD', 'curl', '-f', 'http://localhost:11434/api/tags']
+            interval: 10s
+            timeout: 5s
+            retries: 3
+            start_period: 30s
+        networks:
+            - neo-network
+
+# Correct volume declarations
+volumes:
+    ollama_volume:
+
+# Shared network
+networks:
+    neo-network:
+        external: true

@@ -1,0 +1,247 @@
+---
+title: Olivia - AI Research Assistant Architecture
+description: Complete system architecture diagram for Olivia AI Research Assistant
+---
+
+flowchart TB
+    subgraph Users["👥 Users"]
+        Browser["Web Browser"]
+    end
+
+    subgraph Frontend["🎨 Frontend - React + TypeScript + Vite"]
+        direction TB
+        
+        subgraph Pages["📄 Pages"]
+            Landing["Landing.tsx"]
+            Dashboard["Dashboard.tsx"]
+            Chat["Chat.tsx"]
+            Documents["Documents.tsx"]
+            Profile["Profile.tsx"]
+            Debug["DebugRAG.tsx"]
+        end
+        
+        subgraph Components["🧩 Components"]
+            direction TB
+            
+            subgraph ChatComponents["Chat"]
+                ChatContainer["ChatContainer"]
+                ChatMessages["ChatMessages"]
+                ChatInput["ChatInput"]
+                ChatSidebar["ChatSidebar"]
+                ChatMessage["ChatMessage"]
+                AISettings["AISettingsPanel"]
+            end
+            
+            subgraph DocComponents["Documents"]
+                DocPreview["DocumentPreview"]
+                DocStatus["DocumentStatus"]
+                DocContent["DocumentContentModal"]
+                DocDetails["DocumentDetailsModal"]
+                VectorViz["VectorVisualizationModal"]
+            end
+            
+            subgraph UIComponents["UI"]
+                AuthModal["AuthModal"]
+                Button["Button"]
+                Card["Card"]
+                Input["Input"]
+                Loading["Loading"]
+                ErrorBoundary["ErrorBoundary"]
+                ProgressBar["ProgressBar"]
+            end
+            
+            subgraph WebGL["WebGL"]
+                WebGLBg["WebGLBackground"]
+                ShapeGen["ShapeGenerator"]
+                ShaderLoader["ShaderLoader"]
+            end
+        end
+        
+        subgraph Contexts["🔄 Contexts"]
+            AuthContext["AuthContext"]
+            ProgressContext["ProgressContext"]
+        end
+        
+        subgraph Hooks["🪝 Hooks"]
+            useChat["useChat"]
+            useAuth["useAuth"]
+            useDocuments["useDocuments"]
+            useCommon["useCommon"]
+        end
+        
+        subgraph Services["🔌 Services"]
+            API["api.ts"]
+            ProgressWS["progressWebSocket.ts"]
+        end
+        
+        subgraph Utils["🛠 Utils"]
+            ErrorHandler["errorHandler.ts"]
+            Helpers["helpers.ts"]
+            Optimization["optimization.ts"]
+            ShapeGenerators["shapeGenerators.ts"]
+        end
+    end
+
+    subgraph BackendAPI["⚙️ Backend API - FastAPI"]
+        direction TB
+        
+        subgraph Core["🔧 Core"]
+            Main["main.py - App Entry"]
+            Database["database.py - PostgreSQL"]
+            Security["security.py - Auth"]
+            Middleware["middleware.py"]
+            Exceptions["exceptions.py"]
+            Logging["logging_config.py"]
+            ServiceManager["service_manager.py"]
+            CacheMonitor["cache_monitor.py"]
+            MigrationManager["migration_manager.py"]
+        end
+        
+        subgraph Routers["📡 Routers"]
+            AuthRouter["auth/router.py"]
+            DocRouter["document/router.py"]
+            CollectionRouter["collection/router.py"]
+            ChatRouter["chat/router.py"]
+            RAGRouter["rag/router.py"]
+            MigrationRouter["core/router.py"]
+        end
+        
+        subgraph Models["🗃️ Models"]
+            UserModel["auth/models.py - User"]
+            DocModel["document/models.py"]
+            CollectionModel["collection/models.py"]
+            ChatModel["chat/models.py"]
+        end
+        
+        subgraph RAGService["🤖 RAG Service"]
+            direction TB
+            
+            RagService["RagService"]
+            Chains["services/chains.py"]
+            Embeddings["helpers/embeddings.py"]
+            Retrieval["services/retrieval.py"]
+            Processor["processors/processor.py"]
+            Utils["utils.py"]
+            Viz["visualization.py"]
+        end
+        
+        subgraph AIUtils["🎯 AI Utils"]
+            AIUtilsService["AIUtilityService"]
+            Translation["Translation (Helsinki-NLP)"]
+            TTS["TTS (VITS)"]
+        end
+        
+        subgraph Cache["💾 Cache"]
+            CacheService["cache_service.py"]
+            Redis["Redis"]
+        end
+    end
+
+    subgraph ExternalServices["🌐 External Services"]
+        direction TB
+        
+        subgraph DatabaseLayer["Database"]
+            PostgreSQL["PostgreSQL"]
+            SQLModel["SQLModel ORM"]
+            Alembic["Alembic Migrations"]
+        end
+        
+        subgraph VectorStore["Vector Store"]
+            Milvus["Milvus"]
+        end
+        
+        subgraph AI["AI Models"]
+            Ollama["Ollama (LLM)"]
+            TranslationModel["Helsinki-NLP/opus-mt-en-hi"]
+            VITSModel["kakao-enterprise/vits-ljs (TTS)"]
+            EmbeddingsModel["sentence-transformers/all-MiniLM-L6-v2"]
+        end
+        
+        subgraph FileStorage["File Storage"]
+            LocalFS["Local File System"]
+        end
+    end
+
+    %% Frontend Connections
+    Browser --> Frontend
+    Landing --> AuthModal
+    Dashboard --> AuthContext
+    Chat --> useChat
+    Chat --> ChatContainer
+    Documents --> useDocuments
+    Profile --> useAuth
+    
+    ChatContainer --> ChatMessages
+    ChatContainer --> ChatInput
+    ChatContainer --> ChatSidebar
+    ChatMessages --> ChatMessage
+    
+    useChat --> API
+    useAuth --> API
+    useDocuments --> API
+    
+    API --> AuthContext
+    ProgressWS --> ProgressContext
+    
+    ErrorHandler --> ErrorBoundary
+    
+    %% Backend Connections
+    Main --> Routers
+    Main --> ServiceManager
+    Main --> Database
+    
+    Routers --> Models
+    Routers --> RAGService
+    Routers --> AIUtils
+    
+    AuthRouter --> UserModel
+    DocRouter --> DocModel
+    CollectionRouter --> CollectionModel
+    ChatRouter --> ChatModel
+    
+    RAGService --> Chains
+    RAGService --> Embeddings
+    RAGService --> Retrieval
+    RAGService --> Processor
+    RAGService --> Utils
+    RAGService --> Viz
+    
+    AIUtils --> Translation
+    AIUtils --> TTS
+    
+    CacheService --> Redis
+    
+    %% External Connections
+    Database --> PostgreSQL
+    Database --> SQLModel
+    SQLModel --> Alembic
+    
+    RAGService --> Milvus
+    
+    Embeddings --> EmbeddingsModel
+    Chains --> Ollama
+    Translation --> TranslationModel
+    TTS --> VITSModel
+    
+    DocModel --> LocalFS
+    
+    %% API Connections
+    API -.->|HTTP/REST| Routers
+    ProgressWS -.->|WebSocket| BackendAPI
+    
+    %% Styling
+    classDef frontend fill:#61dafb,stroke:#282c34,stroke-width:2px
+    classDef backend fill:#009688,stroke:#004d40,stroke-width:2px
+    classDef database fill:#336791,stroke:#1a3a5c,stroke-width:2px
+    classDef ai fill:#ff6b6b,stroke:#c92a2a,stroke-width:2px
+    classDef cache fill:#f39c12,stroke:#d68910,stroke-width:2px
+    classDef external fill:#9b59b6,stroke:#8e44ad,stroke-width:2px
+    classDef user fill:#2ecc71,stroke:#27ae60,stroke-width:2px
+    
+    class Landing,Dashboard,Chat,Documents,Profile,Debug,ChatContainer,ChatMessages,ChatInput,ChatSidebar,ChatMessage,AISettings,DocPreview,DocStatus,DocContent,DocDetails,VectorViz,AuthModal,Button,Card,Input,Loading,ErrorBoundary,ProgressBar,WebGLBg,ShapeGen,ShaderLoader,AuthContext,ProgressContext,useChat,useAuth,useDocuments,useCommon,API,ProgressWS,ErrorHandler,Helpers,Optimization,ShapeGenerators frontend
+    class Main,Database,Security,Middleware,Exceptions,Logging,ServiceManager,CacheMonitor,MigrationManager,AuthRouter,DocRouter,CollectionRouter,ChatRouter,RAGRouter,MigrationRouter,UserModel,DocModel,CollectionModel,ChatModel,RagService,Chains,Embeddings,Retrieval,Processor,Utils,Viz,AIUtilsService,Translation,TTS,CacheService backend
+    class PostgreSQL,SQLModel,Alembic database
+    class Ollama,TranslationModel,VITSModel,EmbeddingsModel ai
+    class Redis cache
+    class Milvus,LocalFS external
+    class Browser user

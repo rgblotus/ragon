@@ -1,66 +1,103 @@
-# Rage Docker Services
+# Docker Services
 
-Directory Structure:
+Docker configuration for all infrastructure services.
+
+## Directory Structure
+
+```
 docker/
-├── 01-etcd.yml # etcd (Milvus dependency)
-├── 02-minio.yml # MinIO (Milvus dependency)
-├── 03-milvus.yml # Milvus vector database
-├── 04-postgres.yml # PostgreSQL database
-├── 05-redis.yml # Redis cache
-├── 06-ollama.yml # Ollama LLM
-├── 07-open-webui.yml # Open WebUI
-├── 08-backend.yml # Backend API
-├── 09-frontend.yml # Frontend UI
-├── 10-nginx.yml # Nginx proxy
-├── 11-pgadmin.yml # pgAdmin
-├── start.sh # Start all services
-├── stop.sh # Stop all services
-└── add-user-to-docker.sh # Add user to docker group
+├── 01-milvus.yml          # Milvus vector database
+├── 02-ollama.yml          # Ollama LLM service
+├── 03-postgres.yml        # PostgreSQL database
+├── 04-open-webui.yml      # Open WebUI interface
+├── 05-pgadmin.yml         # pgAdmin database UI
+├── 06-nginx.yml           # Nginx reverse proxy
+├── 07-redis.yml           # Redis cache
+├── nginx.conf             # Nginx configuration
+├── redis.conf             # Redis configuration
+├── ollama/
+│   └── entrypoint.sh      # Ollama entrypoint script
+├── start.sh               # Start all services
+├── stop.sh                # Stop all services
+├── restart.sh             # Restart all services
+├── rebuild.sh             # Rebuild and restart services
+└── add-user-to-docker.sh  # Add user to docker group
+```
 
-## Usage:
+## Services
 
-1. Add user to docker group:
-   ./add-user-to-docker.sh
+| Service | Container Name | Port |
+|---------|---------------|------|
+| Milvus | milvus-standalone | 19530 |
+| Ollama | ollama | 11434 |
+| PostgreSQL | postgres | 5432 |
+| pgAdmin | pgadmin | 5050 |
+| Redis | redis | 6379 |
+| Nginx | nginx | 80 |
+| OpenWebUI | open-webui | 3000 |
 
-    # Log out and back in
+## Usage
 
-2. Start all services:
-   ./start.sh
+### Add user to docker group
 
-3. Stop all services:
-   ./stop.sh
+```bash
+./add-user-to-docker.sh
+```
 
-4. Start individual service:
-   docker compose -f 08-backend.yml up -d
+Then log out and back in.
 
-5. View logs:
-   docker logs rage-backend
-   docker logs -f rage-backend
+### Start all services
 
-## Ports:
+```bash
+sudo ./start.sh
+```
 
-- Frontend: 5173
-- Backend: 8000
-- Milvus: 19530
-- pgAdmin: 5050
-- OpenWebUI: 3000
-- Nginx: 80
+### Stop all services
 
-## Notes:
+```bash
+sudo ./stop.sh
+```
 
-- All services connect via 'rage-network' bridge network
-- GPU services (milvus, ollama) require NVIDIA drivers
-- Services start in order with health checks
+### Restart all services
 
-sudo docker start rage-milvus-etcd rage-milvus-minio rage-standalone rage-postgres rage-pgadmin rage-redis rage-ollama rage-open-webui rage-backend rage-frontend rage-nginx
+```bash
+sudo ./restart.sh
+```
 
-Your services are accessible at:
+### Rebuild containers
+
+```bash
+sudo ./rebuild.sh
+```
+
+### Start individual service
+
+```bash
+docker compose -f 01-milvus.yml up -d
+```
+
+### View logs
+
+```bash
+docker logs neo-milvus-standalone
+docker logs -f neo-milvus-standalone
+```
+
+## Access Points
 
 - Frontend: http://localhost:5173
-- Backend API: http://localhost:8000
+- Backend: http://localhost:8000
 - Milvus: http://localhost:19530
 - pgAdmin: http://localhost:5050 (admin@admin.com / admin123)
-- Open WebUI: http://localhost:3000
+- OpenWebUI: http://localhost:3000
+- Nginx: http://localhost:80
+
+## Notes
+
+- All services connect via `neo-network` bridge network
+- GPU services (Milvus, Ollama) require NVIDIA drivers and Nvidia Container Toolkit
+- Services start in order with health checks
+- Use `sudo` when running scripts as they require docker permissions
 
 The complete cleanup of all Docker containers, volumes, networks, and other resources.
 

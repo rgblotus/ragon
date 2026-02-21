@@ -190,6 +190,52 @@ class RagService:
 
         return context
 
+    def _generate_suggestions(self, query: str, response: str) -> List[str]:
+        """Generate follow-up suggestions based on query and response."""
+        try:
+            prompt = f"""Based on this conversation:
+User Question: {query}
+AI Response: {response[:500]}
+
+Generate 2-3 short follow-up questions the user might ask. Format as a JSON array of strings.
+Questions should be related to the topic and encourage further exploration.
+Return ONLY a JSON array, nothing else."""
+
+            result = self.llm.invoke(prompt)
+            suggestions_text = (
+                result.content if hasattr(result, "content") else str(result)
+            )
+
+            import json
+            import re
+
+            # Try to parse as JSON
+            try:
+                parsed = json.loads(suggestions_text)
+                if isinstance(parsed, list):
+                    return [str(s).strip() for s in parsed[:3]]
+            except:
+                pass
+
+            # Fallback: extract lines starting with numbers or bullets
+            lines = suggestions_text.split("\n")
+            suggestions_list = []
+            for line in lines:
+                line = line.strip()
+                if line and (
+                    line[0].isdigit() or line.startswith("-") or line.startswith("•")
+                ):
+                    clean = re.sub(r"^[\d\.\-\•\s]+", "", line).strip()
+                    if clean and len(clean) > 10:
+                        suggestions_list.append(clean)
+                elif "?" in line and len(line) > 15:
+                    suggestions_list.append(line.strip())
+
+            return suggestions_list[:3]
+        except Exception as e:
+            logger.debug(f"Failed to generate suggestions: {e}")
+            return []
+
     def _get_cached_docs(self, cache_key: str) -> Optional[List]:
         docs = cache_service.get(f"vector:{cache_key}")
         if docs is not None:
@@ -568,6 +614,30 @@ class RagService:
     def _get_lightweight_chain(self, temperature: float, custom_prompt: str = ""):
         return self.chain_factory.create_lightweight_chain(temperature, custom_prompt)
 
+    def _correct_query(self, query: str) -> str:
+        """Automatically correct grammatical and spelling errors in the user query."""
+        try:
+            prompt = f"""Correct any grammatical errors and spelling mistakes in the following user query. 
+Only fix language errors, do NOT change the meaning or technical terms.
+If the query is already correct, return it unchanged.
+
+Query: {query}
+
+Corrected Query:"""
+
+            result = self.llm.invoke(prompt)
+            corrected = result.content if hasattr(result, "content") else str(result)
+            corrected = corrected.strip()
+
+            # Only use correction if it's not empty and different from original
+            if corrected and corrected != query:
+                logger.debug(f"Query corrected: '{query}' -> '{corrected}'")
+                return corrected
+            return query
+        except Exception as e:
+            logger.debug(f"Query correction failed: {e}")
+            return query
+
     async def chat_with_data(
         self,
         query: str,
@@ -576,7 +646,12 @@ class RagService:
         temperature: Optional[float] = None,
         top_k: Optional[int] = None,
         custom_prompt: str = "",
+        auto_correct: bool = True,
     ) -> Dict[str, Any]:
+        # Auto-correct query for grammar and spelling (optional, can be disabled)
+        if auto_correct:
+            query = self._correct_query(query)
+
         temperature = (
             temperature if temperature is not None else settings.RAG_DEFAULT_TEMPERATURE
         )
@@ -686,6 +761,12 @@ class RagService:
         custom_prompt: str = "",
         fetch_sources: bool = False,
     ):
+        # Auto-correct query for grammar and spelling
+        original_query = query
+        query = self._correct_query(query)
+        if query != original_query:
+            logger.info(f"Query corrected: '{original_query}' -> '{query}'")
+
         start_time = time.time()
 
         logger.info(
@@ -782,6 +863,18 @@ class RagService:
                 full_response += chunk
                 # Wrap response chunks in SSE format
                 yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
+
+            # Generate suggestions asynchronously in background (non-blocking)
+            if full_response:
+                try:
+                    loop = get_event_loop()
+                    suggestions = await loop.run_in_executor(
+                        None, lambda: self._generate_suggestions(query, full_response)
+                    )
+                    if suggestions:
+                        yield f"data: {json.dumps({'type': 'suggestions', 'suggestions': suggestions})}\n\n"
+                except Exception as e:
+                    logger.debug(f"Background suggestions generation failed: {e}")
 
             if full_response and not cached_result:
                 await self._save_to_semantic_cache(

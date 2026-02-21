@@ -242,7 +242,16 @@ sudo ./rebuild.sh     # Rebuild containers
 - OpenWebUI: http://localhost:3000
 - Nginx: http://localhost:80
 
-## 4. Backend Setup
+## 4. Database Setup
+
+```bash
+cd backend
+python cli.py init-db
+```
+
+This creates all database tables. No additional migration steps needed.
+
+## 5. Backend Setup
 
 ### Download AI Models
 
@@ -265,7 +274,7 @@ cd backend
 uv run python ./scripts/cli.py dev
 ```
 
-## 5. Frontend Setup
+## 6. Frontend Setup
 
 ### Install Dependencies
 

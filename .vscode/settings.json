@@ -1,0 +1,33 @@
+{
+    "terminal.integrated.fontSize": 14,
+    "terminal.integrated.fontFamily": "JetBrains Mono",
+    "editor.fontFamily": "JetBrains Mono",
+    "editor.fontLigatures": true,
+    "editor.fontSize": 14,
+    "editor.mouseWheelZoom": true,
+    "files.autoSave": "afterDelay",
+    "editor.formatOnSave": true,
+    "editor.formatOnPaste": true,
+    "editor.formatOnType": true,
+    "window.zoomLevel":1.0,
+
+    // Set Prettier as the default formatter for all languages
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+    // Optional: Prettier-specific settings
+    "prettier.tabWidth": 4,
+    "prettier.singleQuote": true,
+    "prettier.semi": false,
+
+    // Optional: Ensure Prettier works for specific file types if other formatters conflict
+    "[javascript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[css]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "codium.codeCompletion.enable": true
+}

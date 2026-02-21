@@ -16,6 +16,7 @@ from typing import List
 from datetime import datetime
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import HTTPException
 
@@ -145,6 +146,9 @@ app = FastAPI(
     lifespan=lifespan,
     debug=settings.DEBUG,
 )
+
+# Add GZip compression for faster responses
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Setup modern middleware system
 setup_middleware(app)

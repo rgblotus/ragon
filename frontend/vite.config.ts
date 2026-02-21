@@ -12,10 +12,15 @@ export default defineConfig({
         rollupOptions: {
             output: {
                 manualChunks: {
-                    'pdfjs-dist': ['pdfjs-dist'],
+                    'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+                    'vendor-ui': ['lucide-react', 'clsx', 'tailwind-merge'],
+                    'vendor-pdf': ['pdfjs-dist', 'react-pdf'],
+                    'vendor-three': ['three', 'three-stdlib'],
+                    'vendor-math': ['katex'],
                 },
             },
         },
+        chunkSizeWarningLimit: 600,
     },
     worker: {
         format: 'es',

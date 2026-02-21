@@ -175,8 +175,9 @@ class ChainFactory:
             if not context_str or context_str.strip() == "":
                 template = DEFAULT_NO_CONTEXT_PROMPT
             else:
+                escaped_context = _escape_curly_braces(context_str)
                 template = self._get_template("", prompt_type).replace(
-                    "{context}", context_str
+                    "{context}", escaped_context
                 )
 
         messages = [
@@ -233,8 +234,9 @@ class ChainFactory:
             if not context_str or context_str.strip() == "":
                 template = DEFAULT_NO_CONTEXT_PROMPT
             else:
+                escaped_context = _escape_curly_braces(context_str)
                 template = self._get_template("", prompt_type).replace(
-                    "{context}", context_str
+                    "{context}", escaped_context
                 )
 
         messages = [

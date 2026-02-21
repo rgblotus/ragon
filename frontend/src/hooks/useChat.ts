@@ -12,6 +12,7 @@ interface StreamingState {
     id: string
     text: string
     sources?: SourceInfo[]
+    suggestions?: string[]
 }
 import type { ParticleShape } from '../utils/shapeGenerators'
 
@@ -46,6 +47,11 @@ export function useChat() {
     const [userSettings, setUserSettings] = useState<UserSettings | null>(null)
     const [selectedColId, setSelectedColId] = useState<string | null>(null)
     const [customRAGPrompt, setCustomRAGPrompt] = useState<string>('')
+    const streamReaderRef = useRef<ReadableStreamDefaultReader<string> | null>(null)
+    const accumulatedTextRef = useRef('')
+    const accumulatedSourcesRef = useRef<SourceInfo[]>([])
+    const accumulatedSuggestionsRef = useRef<string[]>([])
+    const aiMessageIdRef = useRef('')
 
     const activeSession = sessions.find((s) => s.id === activeSessionId) || sessions[0]
     const messages = activeSession?.messages || []
@@ -502,9 +508,12 @@ export function useChat() {
     async function handleSend() {
         if (!input.trim() || loading || !selectedColId) return
 
+        const userMessageText = input.trim()
+        lastUserMessageRef.current = userMessageText
+
         const userMessage: ChatMessage = {
             id: Date.now().toString(),
-            text: input.trim(),
+            text: userMessageText,
             sender: 'user',
             timestamp: new Date(),
         }
@@ -515,6 +524,7 @@ export function useChat() {
         }
 
         const aiMessageId = (Date.now() + 1).toString()
+        aiMessageIdRef.current = aiMessageId
         setStreamingMessage({ id: aiMessageId, text: '' })
 
         setSessions((prev) =>
@@ -529,6 +539,13 @@ export function useChat() {
         setLoading(true)
         setError(null)
 
+        // Check if previous AI message was a question for smart context
+        let enhancedQuery = userMessageText
+        const lastAiMessage = messages.length > 0 ? messages[messages.length - 1] : null
+        if (lastAiMessage && lastAiMessage.sender === 'ai' && lastAiMessage.text.trim().endsWith('?')) {
+            enhancedQuery = `Previous question: "${lastAiMessage.text.trim()}"\n\nUser's answer: ${userMessageText}`
+        }
+
         try {
             if (activeSessionId && activeSessionId !== 'default' && !isNaN(parseInt(activeSessionId))) {
                 chatApi.createMessage(parseInt(activeSessionId), {
@@ -541,7 +558,7 @@ export function useChat() {
             }
 
             const request: ChatRequest = {
-                query: userMessage.text,
+                query: enhancedQuery,
                 collection_id: selectedColId ? parseInt(selectedColId) : 0,
                 temperature,
                 top_k: topK,
@@ -551,14 +568,16 @@ export function useChat() {
 
             const stream = await chatApi.streamChat(request)
             const reader = stream.getReader()
+            streamReaderRef.current = reader
             const decoder = new TextDecoder()
-            let accumulatedText = ''
-            let accumulatedSources: SourceInfo[] = []
+            accumulatedTextRef.current = ''
+            accumulatedSourcesRef.current = []
+            accumulatedSuggestionsRef.current = []
             let buffer = ''
 
             while (true) {
                 const { done, value } = await reader.read()
-                if (done) break
+                if (done || streamReaderRef.current === null) break
 
                 const chunk = decoder.decode(value, { stream: true })
                 buffer += chunk
@@ -574,13 +593,19 @@ export function useChat() {
                             try {
                                 const parsed = JSON.parse(jsonData)
                                 if (parsed.type === 'sources') {
-                                    accumulatedSources = parsed.sources || []
+                                    accumulatedSourcesRef.current = parsed.sources || []
                                     setStreamingMessage((prev) =>
-                                        prev ? { ...prev, sources: accumulatedSources } : null
+                                        prev ? { ...prev, sources: accumulatedSourcesRef.current } : null
+                                    )
+                                    continue
+                                } else if (parsed.type === 'suggestions') {
+                                    accumulatedSuggestionsRef.current = parsed.suggestions || []
+                                    setStreamingMessage((prev) =>
+                                        prev ? { ...prev, suggestions: accumulatedSuggestionsRef.current } : null
                                     )
                                     continue
                                 } else if (parsed.type === 'chunk' && parsed.content) {
-                                    accumulatedText += parsed.content
+                                    accumulatedTextRef.current += parsed.content
                                 } else if (parsed.type === 'error') {
                                     console.error('Stream error:', parsed.message)
                                 }
@@ -590,16 +615,19 @@ export function useChat() {
                     }
                 }
                 setStreamingMessage((prev) =>
-                    prev ? { ...prev, text: accumulatedText } : null
+                    prev ? { ...prev, text: accumulatedTextRef.current } : null
                 )
             }
 
+            const endsWithQuestion = accumulatedTextRef.current.trim().endsWith('?')
             const finalAiMessage: ChatMessage = {
-                id: aiMessageId,
-                text: accumulatedText,
+                id: aiMessageIdRef.current,
+                text: accumulatedTextRef.current,
                 sender: 'ai',
                 timestamp: new Date(),
-                sources: accumulatedSources as SourceInfo[],
+                sources: accumulatedSourcesRef.current as SourceInfo[],
+                suggestions: accumulatedSuggestionsRef.current,
+                aiAskedQuestion: endsWithQuestion,
             }
 
             setSessions((prev) =>
@@ -610,11 +638,11 @@ export function useChat() {
                 )
             )
 
-            if (activeSessionId && activeSessionId !== 'default' && !isNaN(parseInt(activeSessionId)) && accumulatedText.trim()) {
+            if (activeSessionId && activeSessionId !== 'default' && !isNaN(parseInt(activeSessionId)) && accumulatedTextRef.current.trim()) {
                 chatApi.createMessage(parseInt(activeSessionId), {
-                    content: accumulatedText,
+                    content: accumulatedTextRef.current,
                     sender: 'ai',
-                    sources: accumulatedSources,
+                    sources: accumulatedSourcesRef.current,
                 }).catch(console.error)
             }
         } catch (err) {
@@ -623,6 +651,153 @@ export function useChat() {
         } finally {
             setLoading(false)
             setStreamingMessage(null)
+            streamReaderRef.current = null
+        }
+    }
+
+    function handleStopGeneration() {
+        if (streamReaderRef.current) {
+            streamReaderRef.current.cancel()
+            streamReaderRef.current = null
+            
+            const text = accumulatedTextRef.current
+            const sources = accumulatedSourcesRef.current
+            
+            if (text) {
+                const msgId = aiMessageIdRef.current || (Date.now() + 1).toString()
+                const finalAiMessage: ChatMessage = {
+                    id: msgId,
+                    text: text,
+                    sender: 'ai',
+                    timestamp: new Date(),
+                    sources: sources as SourceInfo[],
+                }
+                setSessions((prev) =>
+                    prev.map((s) =>
+                        s.id === activeSessionId
+                            ? { ...s, messages: [...s.messages, finalAiMessage] }
+                            : s
+                    )
+                )
+                
+                if (activeSessionId && activeSessionId !== 'default' && !isNaN(parseInt(activeSessionId)) && text.trim()) {
+                    chatApi.createMessage(parseInt(activeSessionId), {
+                        content: text,
+                        sender: 'ai',
+                        sources: sources,
+                    }).catch(console.error)
+                }
+            }
+            
+            setLoading(false)
+            setStreamingMessage(null)
+        }
+    }
+
+    const lastUserMessageRef = useRef<string>('')
+
+    async function handleRestartGeneration() {
+        const userMsg = lastUserMessageRef.current
+        if (!userMsg || !selectedColId) return
+
+        if (streamReaderRef.current) {
+            streamReaderRef.current.cancel()
+            streamReaderRef.current = null
+        }
+
+        const aiMessageId = (Date.now() + 1).toString()
+        aiMessageIdRef.current = aiMessageId
+        setStreamingMessage({ id: aiMessageId, text: '' })
+
+        setLoading(true)
+        setError(null)
+
+        try {
+            const request: ChatRequest = {
+                query: userMsg,
+                collection_id: selectedColId ? parseInt(selectedColId) : 0,
+                temperature,
+                top_k: topK,
+                custom_prompt: customRAGPrompt,
+                fetch_sources: true,
+            }
+
+            const stream = await chatApi.streamChat(request)
+            const reader = stream.getReader()
+            streamReaderRef.current = reader
+            const decoder = new TextDecoder()
+            accumulatedTextRef.current = ''
+            accumulatedSourcesRef.current = []
+            let buffer = ''
+
+            while (true) {
+                const { done, value } = await reader.read()
+                if (done || streamReaderRef.current === null) break
+
+                const chunk = decoder.decode(value, { stream: true })
+                buffer += chunk
+
+                while (buffer.includes('\n')) {
+                    const newlineIndex = buffer.indexOf('\n')
+                    const line = buffer.slice(0, newlineIndex)
+                    buffer = buffer.slice(newlineIndex + 1)
+
+                    if (line.startsWith('data: ')) {
+                        const jsonData = line.slice(6).trim()
+                        if (jsonData) {
+                            try {
+                                const parsed = JSON.parse(jsonData)
+                                if (parsed.type === 'sources') {
+                                    accumulatedSourcesRef.current = parsed.sources || []
+                                    setStreamingMessage((prev) =>
+                                        prev ? { ...prev, sources: accumulatedSourcesRef.current } : null
+                                    )
+                                    continue
+                                } else if (parsed.type === 'chunk' && parsed.content) {
+                                    accumulatedTextRef.current += parsed.content
+                                } else if (parsed.type === 'error') {
+                                    console.error('Stream error:', parsed.message)
+                                }
+                            } catch {
+                            }
+                        }
+                    }
+                }
+                setStreamingMessage((prev) =>
+                    prev ? { ...prev, text: accumulatedTextRef.current } : null
+                )
+            }
+
+            const finalAiMessage: ChatMessage = {
+                id: aiMessageIdRef.current,
+                text: accumulatedTextRef.current,
+                sender: 'ai',
+                timestamp: new Date(),
+                sources: accumulatedSourcesRef.current as SourceInfo[],
+            }
+
+            setSessions((prev) =>
+                prev.map((s) =>
+                    s.id === activeSessionId
+                        ? { ...s, messages: [...s.messages, finalAiMessage] }
+                        : s
+                )
+            )
+
+            if (activeSessionId && activeSessionId !== 'default' && !isNaN(parseInt(activeSessionId)) && accumulatedTextRef.current.trim()) {
+                chatApi.createMessage(parseInt(activeSessionId), {
+                    content: accumulatedTextRef.current,
+                    sender: 'ai',
+                    sources: accumulatedSourcesRef.current,
+                }).catch(console.error)
+            }
+        } catch (err) {
+            console.error('Streaming error:', err)
+            setError('Communication error. Please check your connection.')
+        } finally {
+            setLoading(false)
+            setStreamingMessage(null)
+            streamReaderRef.current = null
         }
     }
 
@@ -699,6 +874,8 @@ export function useChat() {
         storage.remove(STORAGE_KEYS.CUSTOM_RAG_PROMPT)
     }
 
+    const hasPartialResponse = !!streamingMessage || (!!lastUserMessageRef.current && messages.length > 0 && messages[messages.length - 1]?.sender === 'ai')
+
     return {
         collections, sessions, activeSessionId, input, loading, error,
         activeUtilityId, currentShape, particleCount, userSettings, messages,
@@ -709,6 +886,6 @@ export function useChat() {
         handleCollectionChange, handleVocalVoiceChange, handleCustomRAGPromptChange,
         handleSaveSettings, handleResetToDefaults, handleNewChat, handleDeleteSession,
         copyToClipboard, handleSpeak, handleTranslate, handleFetchSources, handleSend,
-        clearCache,
+        handleStopGeneration, handleRestartGeneration, hasPartialResponse, clearCache,
     }
 }

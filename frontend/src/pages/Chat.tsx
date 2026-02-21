@@ -1,13 +1,11 @@
 // Modern Chat page - Light theme
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useChat } from '../hooks/useChat'
 import ChatSidebar from '../components/chat/ChatSidebar'
 import ChatMessages from '../components/chat/ChatMessages'
 import ChatInput from '../components/chat/ChatInput'
 import AISettingsPanel from '../components/chat/AISettingsPanel'
-import ShapeGenerator from '../components/webGL/ShapeGenerator'
-import WebGLBackground from '../components/webGL/WebGLBackground'
 import {
     Brain,
     Sparkles,
@@ -20,6 +18,10 @@ import {
     FileText,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+
+// Lazy load heavy WebGL components
+const ShapeGenerator = lazy(() => import('../components/webGL/ShapeGenerator'))
+const WebGLBackground = lazy(() => import('../components/webGL/WebGLBackground'))
 
 const Chat = () => {
     const { user } = useAuth()
@@ -34,7 +36,7 @@ const Chat = () => {
         handleCollectionChange, handleVocalVoiceChange, handleCustomRAGPromptChange,
         handleSaveSettings, handleResetToDefaults, handleNewChat, handleDeleteSession,
         copyToClipboard, handleSpeak, handleTranslate, handleFetchSources, handleSend,
-        clearCache,
+        handleStopGeneration, handleRestartGeneration, hasPartialResponse, clearCache,
     } = useChat()
 
     const [isLeftCollapsed, setIsLeftCollapsed] = React.useState(false)
@@ -67,7 +69,20 @@ const Chat = () => {
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [messages, streamingMessage])
+    }, [messages, streamingMessage?.text])
+
+    // Handle suggestion clicks
+    useEffect(() => {
+        const handleSuggestionClick = (e: CustomEvent) => {
+            const suggestion = e.detail
+            if (suggestion && typeof suggestion === 'string') {
+                setInput(suggestion)
+                setTimeout(() => handleSend(), 100)
+            }
+        }
+        window.addEventListener('suggestion-click', handleSuggestionClick as EventListener)
+        return () => window.removeEventListener('suggestion-click', handleSuggestionClick as EventListener)
+    }, [])
 
     if (!user) {
         return (
@@ -88,12 +103,14 @@ const Chat = () => {
 
     return (
         <div className="flex h-screen bg-gradient-to-br from-slate-50 via-purple-50/30 to-slate-100 text-slate-800 overflow-hidden relative">
-            {/* WebGL Background */}
+            {/* WebGL Background - Lazy loaded */}
             <div className="absolute inset-0 z-0">
-                <WebGLBackground
-                    shape={currentShape}
-                    particleCount={particleCount}
-                />
+                <Suspense fallback={null}>
+                    <WebGLBackground
+                        shape={currentShape}
+                        particleCount={particleCount}
+                    />
+                </Suspense>
             </div>
 
             {/* Left Sidebar */}
@@ -153,12 +170,14 @@ const Chat = () => {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* Shape Selector on Navbar */}
+                        {/* Shape Selector on Navbar - Lazy loaded */}
                         <div className="hidden md:flex items-center gap-1 bg-white rounded-lg p-1 shadow-lg z-50 relative">
-                            <ShapeGenerator
-                                currentShape={currentShape}
-                                onShapeChange={handleShapeChange}
-                            />
+                            <Suspense fallback={<div className="w-8 h-8" />}>
+                                <ShapeGenerator
+                                    currentShape={currentShape}
+                                    onShapeChange={handleShapeChange}
+                                />
+                            </Suspense>
                         </div>
 
                         <button
@@ -229,6 +248,7 @@ const Chat = () => {
                                             onFetchSources={handleFetchSources}
                                             collectionId={selectedColId ? parseInt(selectedColId) : null}
                                             isStreaming={true}
+                                            streamingText={streamingMessage.text}
                                         />
                                     )}
                                     <div ref={messagesEndRef} />
@@ -243,6 +263,9 @@ const Chat = () => {
                                     inputValue={input}
                                     setInputValue={setInput}
                                     onSend={handleSend}
+                                    onStop={handleStopGeneration}
+                                    onRestart={handleRestartGeneration}
+                                    hasPartialResponse={hasPartialResponse}
                                     isLoading={loading}
                                 />
                             </div>

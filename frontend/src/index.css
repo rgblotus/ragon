@@ -591,3 +591,39 @@ body {
     white-space: pre-wrap !important;
     line-height: 1.6 !important;
 }
+
+/* Chat message overflow fixes */
+.chat-message-content {
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    max-width: 100%;
+}
+
+/* KaTeX overflow fix */
+.chat-message-content .katex {
+    font-size: 1em !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+}
+
+.chat-message-content .katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    margin: 0.5em 0;
+}
+
+/* Code blocks in chat */
+.chat-message-content pre {
+    overflow-x: auto;
+    max-width: 100%;
+    word-break: break-word;
+}
+
+/* Ensure tables don't overflow */
+.chat-message-content table {
+    display: block;
+    overflow-x: auto;
+    max-width: 100%;
+}

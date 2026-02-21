@@ -1,4 +1,4 @@
-import React, { useRef } from 'react'
+import React, { useRef, useEffect, useCallback } from 'react'
 import { ChatMessage } from '../../types/api'
 import ChatMessageItem from './ChatMessage'
 
@@ -20,6 +20,7 @@ interface ChatMessagesProps {
     ) => void
     collectionId?: number | null
     isStreaming?: boolean
+    streamingText?: string
 }
 
 export const ChatMessages: React.FC<ChatMessagesProps> = ({
@@ -36,16 +37,26 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({
     onFetchSources,
     collectionId,
     isStreaming = false,
+    streamingText = '',
 }) => {
+    const containerRef = useRef<HTMLDivElement>(null)
     const messagesEndRef = useRef<HTMLDivElement>(null)
 
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
     const paginatedMessages = messages.slice(startIndex, endIndex)
 
-    React.useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [messages, isStreaming])
+    const scrollToBottom = useCallback(() => {
+        if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight
+        }
+    }, [])
+
+    useEffect(() => {
+        requestAnimationFrame(() => {
+            scrollToBottom()
+        })
+    }, [messages, isStreaming, streamingText, scrollToBottom])
 
     if (isLoading && messages.length === 0) {
         return (
@@ -82,7 +93,7 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({
     }
 
     return (
-        <div className="flex-1 overflow-y-auto px-2 space-y-1">
+        <div ref={containerRef} className="flex-1 overflow-y-auto px-2 space-y-1">
             {paginatedMessages.map((message) => (
                 <ChatMessageItem
                     key={message.id}
@@ -96,7 +107,6 @@ export const ChatMessages: React.FC<ChatMessagesProps> = ({
                     isStreaming={isStreaming}
                 />
             ))}
-            <div ref={messagesEndRef} />
         </div>
     )
 }

@@ -222,6 +222,8 @@ export interface ChatMessage {
     sender: 'user' | 'ai'
     timestamp: Date      // Backend field is 'created_at'
     sources?: SourceInfo[]
+    suggestions?: string[]
+    aiAskedQuestion?: boolean
 }
 
 export interface ChatSession {

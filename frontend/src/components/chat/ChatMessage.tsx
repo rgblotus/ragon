@@ -124,11 +124,21 @@ const formatInline = (text: string): string => {
         .replace(/\*(.*?)\*/g, '<em class="italic text-slate-600">$1</em>')
         .replace(/`([^`]+)`/g, '<code class="bg-slate-100 text-purple-600 px-1.5 py-0.5 rounded text-xs font-mono">$1</code>')
 
+    // Handle display math: $$...$$ and \[...\]
     text = text.replace(/\$\$(.+?)\$\$/gs, (_, latex) => {
         return `<div class="my-2 text-center">${renderMath(latex.trim(), true)}</div>`
     })
 
+    text = text.replace(/\\\[(.+?)\\\]/gs, (_, latex) => {
+        return `<div class="my-2 text-center">${renderMath(latex.trim(), true)}</div>`
+    })
+
+    // Handle inline math: $...$ and \(...\)
     text = text.replace(/\$([^$\n]+?)\$/g, (_, latex) => {
+        return renderMath(latex.trim(), false)
+    })
+
+    text = text.replace(/\\\((.+?)\\\)/g, (_, latex) => {
         return renderMath(latex.trim(), false)
     })
 
@@ -186,9 +196,9 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                     isUser ? 'items-end' : 'items-start'
                 }`}
             >
-                {/* Message Bubble */}
+                    {/* Message Bubble */}
                 <div
-                    className={`p-3 px-4 md:p-3.5 md:px-5 rounded-2xl text-sm leading-relaxed shadow-lg transition-all break-words ${
+                    className={`p-3 px-4 md:p-3.5 md:px-5 rounded-2xl text-sm leading-relaxed shadow-lg transition-all break-words overflow-hidden ${
                         isUser
                             ? 'bg-gradient-to-br from-purple-500 to-indigo-600 border border-purple-400 rounded-tr-none text-white shadow-purple-200/30'
                             : 'bg-gradient-to-br from-white to-purple-50/60 border border-purple-100 rounded-tl-none text-slate-700 shadow-purple-100/20'
@@ -207,11 +217,11 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                             </span>
                         </div>
                     ) : (
-                        <div className="relative z-10">
+                        <div className="relative z-10 overflow-hidden chat-message-content">
                             {isUser ? (
-                                <p className="whitespace-pre-wrap text-sm">{message.text}</p>
+                                <p className="whitespace-pre-wrap text-sm break-words">{message.text}</p>
                             ) : (
-                                <div className="space-y-0.5">
+                                <div className="space-y-0.5 break-words">
                                     {parseMarkdown(message.text)}
                                 </div>
                             )}
@@ -305,6 +315,29 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                                 <FileText size={12} />
                                 Fetch Sources
                             </button>
+                        </div>
+                    )}
+
+                    {/* Suggestions Section - Only for AI messages */}
+                    {message.suggestions && message.suggestions.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-purple-100 relative z-10">
+                            <div className="text-xs font-black uppercase tracking-[0.2em] text-purple-600 mb-2 opacity-80">
+                                Suggested
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {message.suggestions.map((suggestion, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => {
+                                            // Emit event or handle suggestion click
+                                            window.dispatchEvent(new CustomEvent('suggestion-click', { detail: suggestion }))
+                                        }}
+                                        className="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 px-3 py-1.5 rounded-full border border-purple-200 hover:border-purple-300 transition-colors text-left"
+                                    >
+                                        {suggestion}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     )}
                 </div>

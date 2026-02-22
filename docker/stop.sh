@@ -10,8 +10,6 @@ sudo docker stop \
     neo-redis \
     neo-ollama \
     neo-open-webui \
-    neo-backend \
-    neo-frontend \
     neo-nginx \
     neo-pgadmin
 
